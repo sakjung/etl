@@ -1,3 +1,6 @@
+from typing import Iterator, Optional
+import io
+
 # DROP TABLES
 
 songplay_table_drop = "DROP TABLE songplays;"
@@ -10,8 +13,8 @@ time_table_drop = "DROP TABLE times;"
 
 songplay_table_create = ("""CREATE TABLE songplays (
         songplay_id serial, 
-        start_time timestamp, 
-        user_id int, 
+        start_time timestamp NOT NULL, 
+        user_id int NOT NULL REFERENCES users(user_id) ON UPDATE CASCADE, 
         level varchar,
         song_id varchar,
         artist_id varchar,
@@ -34,8 +37,8 @@ user_table_create = ("""CREATE TABLE users (
 
 song_table_create = ("""CREATE TABLE songs (
         song_id varchar, 
-        title varchar,
-        artist_id varchar,
+        title varchar NOT NULL,
+        artist_id varchar NOT NULL,
         year int,
         duration numeric,
         PRIMARY KEY (song_id)
@@ -44,7 +47,7 @@ song_table_create = ("""CREATE TABLE songs (
 
 artist_table_create = ("""CREATE TABLE artists (
         artist_id varchar,
-        name varchar,
+        name varchar NOT NULL,
         location varchar,
         latitude varchar,
         longitude varchar,
@@ -75,7 +78,8 @@ user_table_insert = ("""INSERT INTO users
     (user_id, first_name, last_name, gender, level)
     VALUES (%s, %s, %s, %s, %s)
     ON CONFLICT (user_id) 
-    DO NOTHING
+    DO UPDATE 
+        SET level = excluded.level
 """)
 
 song_table_insert = ("""INSERT INTO songs 
@@ -89,7 +93,10 @@ artist_table_insert = ("""INSERT INTO artists
     (artist_id, name, location, latitude, longitude)
     VALUES (%s, %s, %s, %s, %s)
     ON CONFLICT (artist_id) 
-    DO NOTHING
+    DO UPDATE 
+        SET location = excluded.location, 
+            latitude = excluded.latitude,
+            longitude = excluded.longitude
 """)
 
 time_table_insert = ("""INSERT INTO times 
@@ -101,13 +108,57 @@ time_table_insert = ("""INSERT INTO times
 
 # FIND SONGS
 
-song_select = ("""SELECT song_id, artist_id
-FROM songs
-WHERE song_id = %s AND artist_id = %s AND duration = %s
+song_select = ("""SELECT song_id, s.artist_id
+FROM songs s JOIN artists a ON s.artist_id = a.artist_id
+WHERE song_id = %s AND s.artist_id = %s AND duration = %s
 """)
 
 # QUERY LISTS
 
-create_table_queries = [songplay_table_create, user_table_create, song_table_create, artist_table_create, time_table_create]
+create_table_queries = [user_table_create, song_table_create, artist_table_create, time_table_create, songplay_table_create]
 drop_table_queries = [songplay_table_drop, user_table_drop, song_table_drop, artist_table_drop, time_table_drop]
-# 
+
+
+# BULK INSERT + ON CONFLICT DO UPDATE SET
+
+create_time_temp_table = """
+    CREATE TABLE temp_t (
+        start_time timestamp,
+        hour int,
+        day int,
+        week int,
+        month int,
+        year int,
+        weekday int);
+        """
+create_user_temp_table = """
+    CREATE TABLE temp_u (
+        user_id int,
+        first_name varchar,
+        last_name varchar,
+        gender varchar,
+        level varchar);
+        """
+
+# copy from file like object to temp
+
+temp_to_time = """
+        INSERT INTO times(start_time, hour , day , week , month , year , weekday)
+        SELECT *
+        FROM temp_t 
+        ON CONFLICT (start_time) 
+        DO NOTHING;
+        
+        DROP TABLE temp_t;
+"""
+
+temp_to_user = """
+        INSERT INTO users(user_id, first_name, last_name , gender , level)
+        SELECT *
+        FROM temp_u
+        ON CONFLICT (user_id) 
+        DO UPDATE 
+        SET level = excluded.level;
+        
+        DROP TABLE temp_u;
+"""
