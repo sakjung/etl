@@ -1,5 +1,7 @@
 # Sparkify 
 
+Skill Set: Data Engineering, Data ETL process
+
 ## Introduction
 
 Sparkify is a virtual startup company that provides new music streaming app service. The Sparkify database mainly aims to collect the data on songs and user activity on the new music streaming app. The collected data can be used to obtain various insights about user preferences on songs and other further analyses.<br><br>
